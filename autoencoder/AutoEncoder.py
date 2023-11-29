@@ -80,22 +80,24 @@ class AutoEncoder(nn.Module):
 
 
 class AutoEncoderLinear(AutoEncoder):
-    def __init__(self, n_in, n_out, activation_func = nn.ReLU(inplace=True), **kwargs):
+    def __init__(self, n_in, n_out, activation_func = nn.ReLU(inplace=True), p=0.5, **kwargs):
         super(AutoEncoderLinear, self).__init__()
 
         encode_act_func, decode_act_func = self.encode_decode_activation(activation_func)
 
         self.encode = nn.Sequential(
-                nn.Dropout(p=0.2),
                 nn.Linear(n_in, n_out),
+                nn.BatchNorm1d(n_out, affine=False),
                 encode_act_func if self.is_valid_activation_fuction(encode_act_func) else nn.ReLU(inplace=True),
+                nn.Dropout(p=p),
                 MatrixEstimator(0.1)
             )
 
         self.decode = nn.Sequential(
-                nn.Dropout(p=0.2),
                 nn.Linear(n_out, n_in),
+                nn.BatchNorm1d(n_in, affine=False),
                 decode_act_func if self.is_valid_activation_fuction(decode_act_func) else nn.ReLU(inplace=True),
+                nn.Dropout(p=p),
                 MatrixEstimator(0.1)
             )
 
@@ -107,27 +109,27 @@ class AutoEncoderLinear(AutoEncoder):
 
 class AutoEncoderConv(AutoEncoder):
     def __init__(self, n_in, n_out, activation_func = nn.ReLU(inplace=True), 
-            upsample = AE_CONV_UPSAMPLING.up_layer, skip_connection=False, **kwargs):
+            upsample = AE_CONV_UPSAMPLING.up_layer, skip_connection=False, p=.5, **kwargs):
         super(AutoEncoderConv, self).__init__()
-
         encode_act_func, decode_act_func = self.encode_decode_activation(activation_func)
 
         self.encode = nn.Sequential(
-            nn.Dropout2d(0.2),
             nn.Conv2d(n_in, n_out, 3, stride=1, padding=1),
-            # nn.Conv2d(n_in, n_out, 5, stride=2, padding=2),
-            encode_act_func if self.is_valid_activation_fuction(encode_act_func) else nn.ReLU(inplace=True),
             nn.MaxPool2d(3, stride=2, padding=1),
+            nn.BatchNorm2d(n_out, affine=False),
+            encode_act_func if self.is_valid_activation_fuction(encode_act_func) else nn.ReLU(inplace=True),
+            nn.Dropout2d(p),
             MatrixEstimator(0.1)
         )
 
         n_out_decode = (n_out + n_in) if skip_connection else n_out
         self.decode = nn.Sequential(
-            nn.Dropout2d(0.2), 
             *(  nn.Upsample(scale_factor=2, mode='nearest'), ) if (upsample == AE_CONV_UPSAMPLING.up_layer) 
                 else ( nn.ConvTranspose2d(n_out, n_out, 3, stride=2, padding=1, output_padding=1), ),
             nn.Conv2d(n_out_decode, n_in, 3, padding=1),
-            decode_act_func if self.is_valid_activation_fuction(decode_act_func) else nn.ReLU(inplace=True),
+            nn.BatchNorm2d(n_in, affine=False),
+            decode_act_func if self.is_valid_activation_fuction(decode_act_func) else nn.ReLU(inplace=True), 
+            nn.Dropout2d(p),
             MatrixEstimator(0.1)
         )
 

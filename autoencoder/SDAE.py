@@ -15,7 +15,7 @@ class SDAE_TYPE(Enum):
 
 
 class SDAE(nn.Module):
-    def __init__(self, dims, sdae_type: SDAE_TYPE, activation_func=nn.ReLU(inplace=True), dropout=True, 
+    def __init__(self, dims, sdae_type: SDAE_TYPE, activation_func=nn.ReLU(inplace=True), dropout=True, p=0.5, 
                     skip_connection=False, **kwargs):
         r'''
             Stacked Autoencoder composed of a symmetric decoder and encoder components accessible via the encoder and decoder
@@ -33,6 +33,9 @@ class SDAE(nn.Module):
                 sdae_type:
 
                 dropout:
+
+                p: int, optional
+                    Dropout probability. Default: 0.5
         '''
         if isinstance(activation_func, list) and len(activation_func)!=len(dims)-1:
             raise ValueError('A list of activation has to be equal to the lenght of "dims" grouped in pairs')
@@ -49,10 +52,11 @@ class SDAE(nn.Module):
         for idx, dim in enumerate(slide(dims, 2)):
             activation = activation_func[idx] if isinstance(activation_func, list) else activation_func
             is_skip_connection = False if idx == 0 else skip_connection
-            self.ae.append( ae(*dim, activation_func=activation, skip_connection=is_skip_connection, **kwargs) )
+            self.ae.append( ae(*dim, activation_func=activation, skip_connection=is_skip_connection, p=p, **kwargs) )
           
         self.encode = nn.Sequential(*list(map(lambda ae: ae.get_encode(dropout), self.ae)))
-        self.decode = nn.Sequential(*list(map(lambda ae: ae.get_decode(dropout), self.ae[::-1])))
+        # self.decode = nn.Sequential(*list(map(lambda tuple: tuple[1].get_decode(False if tuple[0]>=len(self.ae)-1 else dropout), enumerate(self.ae[::-1]))))
+        self.decode = nn.Sequential(*list(map(lambda tuple: tuple[1].get_decode(False), enumerate(self.ae[::-1]))))
 
     def get_encode(self, matrix_estimator=False) -> nn.Sequential:
         r'''
